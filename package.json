@@ -1,0 +1,25 @@
+{
+  "name": "smartyoga-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartYoga AI — Real-time AI Posture Correction & IoT Smart Mat Platform",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview"
+  },
+  "keywords": [
+    "yoga",
+    "ai",
+    "computer-vision",
+    "posture-correction",
+    "mediapipe",
+    "tensorflowjs",
+    "iot",
+    "esp32",
+    "smart-mat"
+  ],
+  "author": "SmartYoga AI Team",
+  "license": "MIT"
+}
+

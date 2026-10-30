@@ -1,0 +1,45 @@
+{
+  "poses": [
+    "downdog",
+    "goddess",
+    "plank",
+    "tree",
+    "warrior2"
+  ],
+  "pose_to_id": {
+    "downdog": 0,
+    "goddess": 1,
+    "plank": 2,
+    "tree": 3,
+    "warrior2": 4
+  },
+  "id_to_pose": {
+    "0": "downdog",
+    "1": "goddess",
+    "2": "plank",
+    "3": "tree",
+    "4": "warrior2"
+  },
+  "model_type": "RandomForest",
+  "feature_type": "HOG",
+  "feature_params": {
+    "target_size": [
+      128,
+      128
+    ],
+    "orientations": 9,
+    "pixels_per_cell": [
+      8,
+      8
+    ],
+    "cells_per_block": [
+      2,
+      2
+    ]
+  },
+  "training_info": {
+    "n_estimators": 300,
+    "max_depth": 30,
+    "uses_scaler": true
+  }
+}

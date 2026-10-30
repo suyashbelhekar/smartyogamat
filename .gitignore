@@ -1,0 +1,61 @@
+# Node dependencies
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Production build outputs
+dist/
+frontend/dist/
+build/
+
+# Vite & Bundler caches
+.vite/
+frontend/.vite/
+frontend/node_modules/.vite/
+frontend/node_modules/.vite-temp/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.local
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python caches and virtualenvs
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+ml_training/cache/
+
+# Large binaries and archives (GitHub 100MB limit)
+*.zip
+*.tar.gz
+*.rar
+dataset/dataset.zip
+
+# Android build outputs & local config
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
