@@ -7,6 +7,7 @@ import type {
 } from '../types/session'
 import { ref, set } from 'firebase/database'
 import { db } from '../lib/firebase'
+import { backendApi } from './backendApi'
 
 const STORAGE_KEY = 'yoga_pose_session_history_v1'
 
@@ -65,6 +66,13 @@ export const historyStorage = {
         void set(sessionRef, session).catch(() => {})
       } catch {
         // Fallback gracefully if Firebase is offline or unconfigured
+      }
+
+      // Also sync to Render backend service if configured
+      try {
+        void backendApi.saveSession(session).catch(() => {})
+      } catch {
+        // Fallback gracefully
       }
     } catch (e) {
       console.error('Failed to save session to localStorage:', e)

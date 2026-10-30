@@ -93,24 +93,36 @@ Trained and calibrated with 96.6% accuracy on 33-point normalized 3D skeleton ve
 
 ---
 
+## 🌐 Dual-Repository Architecture & Cloud Deployment
+
+SmartYoga AI is organized into two dedicated repositories:
+
+| Component | GitHub Repository | Primary Hosting Platform |
+| :--- | :--- | :--- |
+| **Frontend Web Studio** | [`suyashbelhekar/smartyogamat`](https://github.com/suyashbelhekar/smartyogamat) | **Vercel** |
+| **Backend API & IoT Telemetry** | [`suyashbelhekar/smartyoga-backend`](https://github.com/suyashbelhekar/smartyoga-backend) | **Render** |
+
+---
+
 ## 🚀 Cloud Deployment Guide
 
-### Deploying on Vercel
-This repository includes a pre-configured [vercel.json](file:///d:/pose%20(2)/pose/vercel.json):
-1. Import your GitHub repository suyashbelhekar/smartyogamat into [Vercel](https://vercel.com).
-2. Vercel automatically uses ercel.json (uildCommand: npm --prefix frontend install && npm --prefix frontend run build, outputDirectory: frontend/dist).
-3. If setting root directory manually in Vercel settings, select rontend with framework preset **Vite**.
+### 1. Deploy Frontend on Vercel
+This repository includes a pre-configured [`vercel.json`](file:///d:/pose%20(2)/pose/vercel.json):
+1. Import your GitHub repository **`suyashbelhekar/smartyogamat`** into [Vercel](https://vercel.com).
+2. Vercel automatically detects `vercel.json` with settings:
+   - **Framework Preset**: Vite
+   - **Build Command**: `npm --prefix frontend install && npm --prefix frontend run build`
+   - **Output Directory**: `frontend/dist`
+3. In Project Settings -> Environment Variables, optionally add:
+   - `VITE_BACKEND_URL`: `https://smartyoga-backend.onrender.com`
 4. Click **Deploy**!
 
-### Deploying on Render
-This repository includes a pre-configured [render.yaml](file:///d:/pose%20(2)/pose/render.yaml):
-1. Connect your repository in [Render Dashboard](https://dashboard.render.com).
-2. Choose **Static Site** (or deploy via **Blueprint** using 
-ender.yaml).
-3. Build Command: 
-pm --prefix frontend install && npm --prefix frontend run build
-4. Publish Directory: rontend/dist
-5. Click **Create Static Site**!
+### 2. Deploy Backend on Render
+The backend repository is ready to deploy at [**`suyashbelhekar/smartyoga-backend`**](https://github.com/suyashbelhekar/smartyoga-backend):
+1. In [Render Dashboard](https://dashboard.render.com), click **"New +"** -> **"Web Service"**.
+2. Connect `https://github.com/suyashbelhekar/smartyoga-backend`.
+3. Render automatically reads `render.yaml` (`npm install` & `npm start`, health check at `/health`).
+4. Click **Create Web Service**! Your backend will be live at `https://smartyoga-backend.onrender.com`.
 
 ---
 

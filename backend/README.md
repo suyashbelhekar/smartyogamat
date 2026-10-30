@@ -1,144 +1,149 @@
-# ⚡ SmartYoga AI — Backend & IoT Architecture
+# ⚡ SmartYoga AI — Backend API & IoT Telemetry Service
 
-SmartYoga AI utilizes an **Edge-Computing & Serverless Real-Time Telemetry** architecture designed for ultra-low latency (<30ms), zero cloud bandwidth costs for video streaming, and end-to-end user privacy.
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 
----
-
-## 🏛 Architecture Overview
-
-```
-                      ┌──────────────────────────────────────┐
-                      │          SmartYoga AI Web Client      │
-                      │  (React 19 + MediaPipe Tasks + TF.js) │
-                      └──────────────┬───────────────────────┘
-                                     │
-                 ┌───────────────────┴───────────────────┐
-                 │                                       │
-                 ▼                                       ▼
-  ┌──────────────────────────────┐       ┌──────────────────────────────┐
-  │   Client-Side Edge Vision    │       │  Firebase Realtime Database  │
-  │ • MediaPipe 33 Landmarks     │       │ • IoT Sensor Matrix Telemetry│
-  │ • 5s Initial Posture Scan    │       │ • Session History & Reports  │
-  │ • Real-time Joint Geometry   │       └──────────────▲───────────────┘
-  └──────────────────────────────┘                      │
-                                                        │ WiFi / MQTT / REST
-                                         ┌──────────────┴───────────────┐
-                                         │   Smart Yoga Mat (ESP32)     │
-                                         │ • 6-Channel Pressure Matrix  │
-                                         │ • Left/Right Weight Ratio    │
-                                         └──────────────────────────────┘
-```
+A high-performance, lightweight microservice built with **Node.js & Express** providing real-time IoT smart mat telemetry ingestion, yoga posture session journaling, longitudinal analytics, and the 9-asana classical biomechanical registry for **SmartYoga AI**.
 
 ---
 
-## 📡 1. IoT Sensor Mat Telemetry (ESP32 Matrix)
+## 🏛 Architecture
 
-The smart yoga mat hardware consists of piezoresistive pressure sensors connected to an ESP32 microcontroller reading analog values across 6 key pressure points:
+```text
+  ┌────────────────────────────────────────────────────────┐
+  │                 SmartYoga AI Frontend                  │
+  │            (React 19, MediaPipe, TF.js)                │
+  │          Hosted on Vercel (smartyogamat)               │
+  └──────────────────────────┬─────────────────────────────┘
+                             │ REST / JSON
+                             ▼
+  ┌────────────────────────────────────────────────────────┐
+  │              SmartYoga AI Backend Service              │
+  │          (Express.js API Hosted on Render)             │
+  │             (smartyoga-backend repository)             │
+  └──────────────┬───────────────────────────▲─────────────┘
+                 │                           │ HTTP POST Telemetry
+                 ▼                           │ (/api/mat/telemetry)
+  ┌──────────────────────────────┐ ┌─────────┴─────────────┐
+  │   Session Log & Analytics    │ │   ESP32 Smart Mat     │
+  │   • In-memory / DB records   │ │   • 6 FSR Channels    │
+  │   • Longitudinal Trends      │ │   • Dual-Foot Matrix  │
+  └──────────────────────────────┘ └───────────────────────┘
+```
 
-| Sensor ID | Location | Biomechanical Measurement |
+---
+
+## 🚀 1-Click Deployment on Render
+
+This repository includes a pre-configured [`render.yaml`](./render.yaml):
+
+1. Go to [dashboard.render.com](https://dashboard.render.com) and sign in.
+2. Click **"New +"** → **"Web Service"** (or choose **"Blueprint"**).
+3. Connect your GitHub repository: `https://github.com/suyashbelhekar/smartyoga-backend`.
+4. Render will automatically detect the settings:
+   - **Environment**: Node
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Health Check Path**: `/health`
+5. Click **Create Web Service**. Your API will be live at `https://smartyoga-backend.onrender.com`!
+
+---
+
+## 📡 API Endpoints
+
+### 1. Health & Status
+| Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `p1` | Left Heel | Posterior left heel strike and grounding |
-| `p2` | Left Metatarsal | Anterior left foot arch & ball pressure |
-| `p3` | Left Outer Edge | Lateral left foot inversion/eversion balance |
-| `p4` | Right Heel | Posterior right heel strike and grounding |
-| `p5` | Right Metatarsal | Anterior right foot arch & ball pressure |
-| `p6` | Right Outer Edge | Lateral right foot inversion/eversion balance |
+| `GET` | `/` | Service root & API index |
+| `GET` | `/health` | Service health status, uptime, memory usage |
 
-### JSON Payload Schema (`/sensors/mat`)
+**Sample `/health` response:**
 ```json
 {
-  "timestamp": 1729482910234,
+  "status": "healthy",
+  "timestamp": "2026-10-31T00:38:00.000Z",
+  "uptimeSeconds": 1420,
+  "memoryUsageMB": 38
+}
+```
+
+---
+
+### 2. Smart Mat IoT Telemetry
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/mat/status` | Current pressure matrix & symmetry load |
+| `POST` | `/api/mat/telemetry` | Ingest 6-channel sensor packet from ESP32 |
+| `POST` | `/api/mat/simulate` | Test mat with simulated weight (`balanced`, `left_heavy`, `right_heavy`) |
+| `POST` | `/api/mat/reset` | Zero/calibrate mat readings |
+
+**Sample ESP32 Telemetry Payload (`POST /api/mat/telemetry`):**
+```json
+{
+  "deviceId": "ESP32_SMART_MAT_01",
   "sensors": {
-    "p1": 420,
-    "p2": 510,
-    "p3": 130,
-    "p4": 415,
-    "p5": 525,
-    "p6": 140
-  },
-  "balance": {
-    "weightLeft": 51.2,
-    "weightRight": 48.8,
-    "balanceScore": 88
+    "p1": 340,
+    "p2": 410,
+    "p3": 120,
+    "p4": 335,
+    "p5": 415,
+    "p6": 125
   }
 }
 ```
 
 ---
 
-## 💾 2. Cloud Session Persistence (`/sessions/<sessionId>`)
+### 3. Yoga Practice Sessions & Analytics
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/sessions` | List recorded sessions (supports `?poseId=` filter) |
+| `POST` | `/api/sessions` | Record a completed yoga practice session |
+| `GET` | `/api/sessions/:id` | Fetch single session details |
+| `DELETE` | `/api/sessions/:id` | Delete session record |
+| `GET` | `/api/analytics/summary`| Longitudinal statistics, total minutes, streak |
 
-Session records and progress reports are saved locally and synced to Firebase Realtime Database:
-
+**Sample Session Record (`POST /api/sessions`):**
 ```json
 {
-  "id": "session_1730300400000",
   "poseId": "warrior2",
-  "timestamp": 1730300400000,
+  "poseName": "Warrior II",
+  "poseSanskrit": "Virabhadrasana II",
   "durationSec": 45,
-  "accuracy": 88,
-  "instantBalanceScore": 84,
-  "correctionsPerformed": 3,
-  "improvementPct": 14,
-  "topFaults": [
-    "Bend front knee toward 90° (±18° deviation)",
-    "Straighten rear leg fully"
-  ],
-  "accuracyHistory": [64, 70, 78, 85, 88]
+  "cameraAccuracy": 91,
+  "matBalanceScore": 88,
+  "combinedScore": 90,
+  "correctionsPerformed": 2,
+  "improvementPct": 12
 }
 ```
 
 ---
 
-## 🔐 3. Firebase Security Rules (`database.rules.json`)
-
-To secure the Realtime Database for production deployments:
-
-```json
-{
-  "rules": {
-    "sensors": {
-      "mat": {
-        ".read": true,
-        ".write": "auth != null || request.auth.token.role == 'iot_device'"
-      }
-    },
-    "sessions": {
-      "$sessionId": {
-        ".read": true,
-        ".write": true
-      }
-    }
-  }
-}
-```
+### 4. Asana Curriculum Registry
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/poses` | Retrieve all 9 classical asanas with metadata |
+| `GET` | `/api/poses/:id` | Retrieve biomechanical angle specifications |
 
 ---
 
-## 🚀 4. Optional: Dedicated Microservices API
+## 🛠 Local Development
 
-If you wish to deploy an additional Python (FastAPI) or Node.js backend for offline batch processing, user authentication, or LMS integration:
+```bash
+# Clone the repository
+git clone https://github.com/suyashbelhekar/smartyoga-backend.git
+cd smartyoga-backend
 
-### Example FastAPI Proxy (`backend/main.py`)
-```python
-from fastapi import FastAPI
-from pydantic import BaseModel
+# Install dependencies
+npm install
 
-app = FastAPI(title="SmartYoga AI Backend Service")
-
-class TelemetryPayload(BaseModel):
-    userId: str
-    sessionId: str
-    averageAccuracy: float
-    correctionsCount: int
-
-@app.post("/api/v1/sessions/record")
-async def record_session(payload: TelemetryPayload):
-    # Process or forward to PostgreSQL / MongoDB
-    return {"status": "recorded", "sessionId": payload.sessionId}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Start local dev server (auto-reloads on file change)
+npm run dev
 ```
 
+Server runs on: **`http://localhost:5000`**
+
+---
+
+## 📜 License
+MIT License. © 2026 SmartYoga AI.
