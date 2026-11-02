@@ -1,0 +1,19 @@
+{
+  "model_name": "Aggregated Yoga 9-Pose Classifier",
+  "num_classes": 9,
+  "classes": [
+    "ardhamatsyendrasana",
+    "baddhakonasana",
+    "dandasana",
+    "downdog",
+    "goddess",
+    "padmasana",
+    "plank",
+    "tree",
+    "warrior2"
+  ],
+  "test_accuracy": 0.959612250328064,
+  "test_loss": 0.177005797624588,
+  "classification_report": "                     precision    recall  f1-score   support\n\nardhamatsyendrasana      0.940     0.984     0.962        64\n     baddhakonasana      0.862     1.000     0.926        25\n          dandasana      0.931     0.982     0.956        55\n            downdog      0.965     0.954     0.960        87\n            goddess      0.985     0.892     0.936        74\n          padmasana      0.980     1.000     0.990        50\n              plank      0.968     0.928     0.947        97\n               tree      0.973     0.986     0.979        72\n           warrior2      0.968     0.968     0.968        95\n\n           accuracy                          0.960       619\n          macro avg      0.953     0.966     0.958       619\n       weighted avg      0.961     0.960     0.960       619\n",
+  "timestamp": "2026-11-01 23:33:42"
+}

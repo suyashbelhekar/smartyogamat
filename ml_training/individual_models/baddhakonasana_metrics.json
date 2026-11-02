@@ -1,0 +1,9 @@
+{
+  "pose": "baddhakonasana",
+  "accuracy": 0.9903069734573364,
+  "precision": 0.8064516186714172,
+  "recall": 1.0,
+  "f1": 0.8928571414497654,
+  "loss": 0.02273854985833168,
+  "epochs_trained": 29
+}

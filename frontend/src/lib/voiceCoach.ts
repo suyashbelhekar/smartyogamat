@@ -149,14 +149,52 @@ export const FALLBACK_CUES: PoseCues = {
 
 // ── VoiceCoach class ─────────────────────────────────────────────────────────
 
+export interface AccurationParams {
+  scorePct: number
+  topCueEn?: string
+  topCueMr?: string
+  jointNameEn?: string
+  jointNameMr?: string
+  matched: boolean
+  poseName: string
+  poseId?: string
+  mode: VoiceMode
+}
+
 class VoiceCoach {
   private lastSpokenText = ''
   private lastSpokenTime = 0
   private isSpeaking = false
-  private cooldownMs = 4000
-  private repeatCooldownMs = 7000
+  private cooldownMs = 3600
+  private repeatCooldownMs = 6500
   private activeSession = false
-  private activeTimeouts: number[] = []
+  private voices: SpeechSynthesisVoice[] = []
+  private currentUtterance: SpeechSynthesisUtterance | null = null
+
+  constructor() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      this.loadVoices()
+      window.speechSynthesis.onvoiceschanged = () => {
+        this.loadVoices()
+      }
+      const unlock = () => {
+        if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+          window.speechSynthesis.resume()
+        }
+        window.removeEventListener('click', unlock)
+        window.removeEventListener('keydown', unlock)
+        window.removeEventListener('touchstart', unlock)
+      }
+      window.addEventListener('click', unlock)
+      window.addEventListener('keydown', unlock)
+      window.addEventListener('touchstart', unlock)
+    }
+  }
+
+  private loadVoices() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    this.voices = window.speechSynthesis.getVoices()
+  }
 
   public get speaking(): boolean {
     return this.isSpeaking
@@ -166,6 +204,9 @@ class VoiceCoach {
     this.activeSession = true
     this.lastSpokenText = ''
     this.lastSpokenTime = 0
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume()
+    }
   }
 
   public stopSession() {
@@ -174,29 +215,50 @@ class VoiceCoach {
   }
 
   private getVoices(): SpeechSynthesisVoice[] {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return []
-    return window.speechSynthesis.getVoices()
+    if (!this.voices.length && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      this.voices = window.speechSynthesis.getVoices()
+    }
+    return this.voices
   }
 
   private findVoice(langPrefix: string, fallbackPrefix?: string): SpeechSynthesisVoice | null {
     const voices = this.getVoices()
     if (!voices.length) return null
-    const exact = voices.find((v) => v.lang.toLowerCase() === langPrefix.toLowerCase())
-    if (exact) return exact
-    const prefix = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix.toLowerCase()))
-    if (prefix) return prefix
+
+    // 1. Exact match (e.g. 'en-IN', 'en-US')
+    let found = voices.find((v) => v.lang.toLowerCase() === langPrefix.toLowerCase())
+    if (found) return found
+
+    // 2. Prefix match (e.g. 'en-')
+    found = voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix.toLowerCase()))
+    if (found) return found
+
+    // 3. Fallback prefix (e.g. 'hi-IN' or 'hi' for Marathi)
     if (fallbackPrefix) {
-      const fb = voices.find((v) => v.lang.toLowerCase().startsWith(fallbackPrefix.toLowerCase()))
-      if (fb) return fb
+      found = voices.find((v) => v.lang.toLowerCase().startsWith(fallbackPrefix.toLowerCase()))
+      if (found) return found
     }
-    return null
+
+    // 4. Primary language tag (e.g. any 'en' voice)
+    const baseLang = langPrefix.split('-')[0].toLowerCase()
+    found = voices.find((v) => v.lang.toLowerCase().startsWith(baseLang))
+    if (found) return found
+
+    // 5. Default browser voice
+    found = voices.find((v) => v.default)
+    return found || voices[0] || null
   }
 
   public cancel() {
-    for (const id of this.activeTimeouts) {
-      window.clearTimeout(id)
+    this.activeSession = false
+    this.isSpeaking = false
+    this.lastSpokenText = ''
+
+    if (this.currentUtterance) {
+      this.currentUtterance.onend = null
+      this.currentUtterance.onerror = null
+      this.currentUtterance = null
     }
-    this.activeTimeouts = []
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
@@ -209,8 +271,71 @@ class VoiceCoach {
         // ignore
       }
     }
-    this.isSpeaking = false
-    this.lastSpokenText = ''
+  }
+
+  /**
+   * Real-time directional voice instruction delivered while pose is scoring
+   * to guide the practitioner toward higher accuracy.
+   */
+  public speakAccurationInstruction(params: AccurationParams) {
+    if (!this.activeSession) return
+    const { scorePct, topCueEn, topCueMr, matched, poseName, poseId, mode } = params
+    if (mode === 'off' || typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    if (!this.activeSession) return
+
+    const now = performance.now()
+    if (now - this.lastSpokenTime < this.cooldownMs) return
+
+    let speechEn = ''
+    let speechMr = ''
+
+    // 1. Posture matched or top score tier (>= 85%)
+    if (matched || scorePct >= 85) {
+      speechEn = 'Great alignment! ' + scorePct + ' percent accuracy. Hold steady.'
+      speechMr = 'उत्तम मुद्रा! ' + scorePct + ' टक्के अचूकता. मुद्रा स्थिर ठेवा.'
+    }
+    // 2. Specific angular deviation fault cue
+    else if (topCueEn) {
+      const cleanEn = topCueEn.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*?\)\s*/g, '').trim()
+      const cleanMr = topCueMr ? topCueMr.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*?\)\s*/g, '').trim() : cleanEn
+
+      if (scorePct >= 65) {
+        speechEn = cleanEn + '. Accuracy ' + scorePct + ' percent, almost there.'
+        speechMr = cleanMr + '. अचूकता ' + scorePct + ' टक्के, आणखी थोडे सुधारा.'
+      } else {
+        speechEn = cleanEn + ' to improve accuracy.'
+        speechMr = 'अचूकता वाढवण्यासाठी ' + cleanMr + '.'
+      }
+    }
+    // 3. Fallback to curriculum posture cue tier for this pose
+    else if (poseId && POSE_CUES[poseId]) {
+      const tier: CueTier = scorePct >= 65 ? 'high' : scorePct >= 45 ? 'mid' : 'low'
+      const pool = POSE_CUES[poseId][tier]
+      if (pool && pool.length > 0) {
+        const item = pool[Math.floor(Math.random() * pool.length)]
+        speechEn = item.en + ' Current accuracy ' + scorePct + ' percent.'
+        speechMr = item.mr + ' चालू अचूकता ' + scorePct + ' टक्के.'
+      }
+    }
+
+    if (!speechEn) {
+      speechEn = 'Adjust your posture to align with ' + poseName + '. Accuracy ' + scorePct + ' percent.'
+      speechMr = poseName + ' साठी मुद्रा सुधारा. अचूकता ' + scorePct + ' टक्के.'
+    }
+
+    if (this.lastSpokenText === speechEn && now - this.lastSpokenTime < this.repeatCooldownMs) return
+
+    this.cancel()
+    this.activeSession = true
+    this.lastSpokenText = speechEn
+    this.lastSpokenTime = now
+    this.isSpeaking     = true
+
+    if (mode === 'mr') {
+      this.speakUtterance(speechMr, 'mr-IN', 0.90, () => { this.isSpeaking = false }, 'hi-IN')
+    } else {
+      this.speakUtterance(speechEn, 'en-IN', 0.95, () => { this.isSpeaking = false }, 'en-US')
+    }
   }
 
   /**
@@ -222,58 +347,51 @@ class VoiceCoach {
     const now = performance.now()
     if (now - this.lastSpokenTime < this.cooldownMs) return
 
-    // Strip degree deviations & parentheticals for concise, natural speech:
-    // e.g. "Straighten left knee (±24° deviation)" -> "Straighten left knee"
-    const cleanEn = enText.replace(/\s*\(.*?\)\s*/g, '').trim()
-    const cleanMr = mrText ? mrText.replace(/\s*\(.*?\)\s*/g, '').trim() : cleanEn
+    const cleanEn = enText.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*?\)\s*/g, '').trim()
+    const cleanMr = mrText ? mrText.replace(/^[^:]+:\s*/, '').replace(/\s*\(.*?\)\s*/g, '').trim() : cleanEn
 
     if (this.lastSpokenText === cleanEn && now - this.lastSpokenTime < this.repeatCooldownMs) return
 
     this.cancel()
+    this.activeSession = true
     this.lastSpokenText = cleanEn
     this.lastSpokenTime = now
     this.isSpeaking     = true
 
-    if (mode === 'en') {
-      this.speakUtterance(cleanEn, 'en-IN', 0.95, () => { this.isSpeaking = false })
-    } else if (mode === 'mr') {
+    if (mode === 'mr') {
       this.speakUtterance(cleanMr, 'mr-IN', 0.90, () => { this.isSpeaking = false }, 'hi-IN')
+    } else {
+      this.speakUtterance(cleanEn, 'en-IN', 0.95, () => { this.isSpeaking = false }, 'en-US')
     }
   }
 
   /**
    * Confirmation spoken when posture meets target criteria.
    */
-  public speakPoseMatch(name: string, sanskrit: string, mode: VoiceMode) {
+  public speakPoseMatch(name: string, sanskrit: string, mode: VoiceMode, scorePct: number = 88) {
     if (!this.activeSession || mode === 'off' || typeof window === 'undefined' || !('speechSynthesis' in window)) return
     const now = performance.now()
-    if (this.lastSpokenText === `match_${name}` && now - this.lastSpokenTime < 10000) return
+    if (this.lastSpokenText === 'match_' + name && now - this.lastSpokenTime < 10000) return
 
     this.cancel()
+    this.activeSession = true
     this.lastSpokenTime = now
-    this.lastSpokenText = `match_${name}`
+    this.lastSpokenText = 'match_' + name
     this.isSpeaking     = true
 
-    const enText = `Great form! ${name} is matched. Hold steady.`
-    const mrText = `उत्तम! ${sanskrit} योग्य जुळले आहे. मुद्रा स्थिर ठेवा.`
+    const enText = 'Superb form! ' + name + ' achieved with ' + scorePct + ' percent accuracy. Hold steady!'
+    const mrText = 'उत्तम मुद्रा! ' + sanskrit + ' ' + scorePct + ' टक्के अचूकतेसह साध्य झाली. मुद्रा स्थिर ठेवा!'
 
-    if (mode === 'en') {
-      this.speakUtterance(enText, 'en-IN', 0.95, () => { this.isSpeaking = false })
-    } else if (mode === 'mr') {
+    if (mode === 'mr') {
       this.speakUtterance(mrText, 'mr-IN', 0.90, () => { this.isSpeaking = false }, 'hi-IN')
+    } else {
+      this.speakUtterance(enText, 'en-IN', 0.95, () => { this.isSpeaking = false }, 'en-US')
     }
   }
 
-  /**
-   * Compatibility wrapper if called with poseId and score.
-   */
-  public speakPoseCue(_poseId: string, _score: number, _mode: VoiceMode) {
-    // Deprecated in favor of direct posture engine speakCorrection
-  }
+  public speakPoseCue(_poseId: string, _score: number, _mode: VoiceMode) {}
 
-  public speakPoseIntro(_name: string, _sanskrit: string, _mode: VoiceMode) {
-    // Removed unneeded intro chatter per user specification
-  }
+  public speakPoseIntro(_name: string, _sanskrit: string, _mode: VoiceMode) {}
 
   private speakUtterance(
     text: string,
@@ -287,23 +405,53 @@ class VoiceCoach {
       onEnd?.()
       return
     }
+
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume()
+      }
+    } catch {
+      // ignore
+    }
+
     const utterance   = new SpeechSynthesisUtterance(text)
     utterance.rate    = rate
     utterance.pitch   = 1.0
-    const voice       = this.findVoice(lang, fallbackLang)
-    if (voice) utterance.voice = voice
-    else        utterance.lang  = lang
-    utterance.onend  = () => {
+
+    const voice = this.findVoice(lang, fallbackLang)
+    if (voice) {
+      utterance.voice = voice
+    } else {
+      utterance.lang  = lang
+    }
+
+    this.currentUtterance = utterance
+
+    utterance.onend = () => {
+      this.currentUtterance = null
       this.isSpeaking = false
       onEnd?.()
     }
     utterance.onerror = () => {
+      this.currentUtterance = null
       this.isSpeaking = false
       onEnd?.()
     }
 
-    if (!this.activeSession) return
-    window.speechSynthesis.speak(utterance)
+    if (!this.activeSession) {
+      this.currentUtterance = null
+      this.isSpeaking = false
+      onEnd?.()
+      return
+    }
+
+    try {
+      window.speechSynthesis.speak(utterance)
+    } catch {
+      this.currentUtterance = null
+      this.isSpeaking = false
+      onEnd?.()
+    }
   }
 }
 

@@ -133,80 +133,113 @@ export default function App() {
     return () => cancelAnimationFrame(frame)
   }, [session.videoRef, matched, session.frozenState.isFrozen, session.guidance.detailedCues, session.countdownActive])
 
-  // ── voice session lifecycle: immediate cancellation when session/camera stops or tab changes ──
+  // ── Voice coach session lifecycle: immediate cancellation when camera stops or leaving tab ──
   useEffect(() => {
-    if (!session.running || activeTab !== 'camera' || !tracking || session.countdownActive) {
+    if (activeTab !== 'camera' || !session.running) {
       voiceCoach.stopSession()
+      voiceCoach.cancel()
     } else {
       voiceCoach.startSession()
     }
-  }, [session.running, activeTab, tracking, session.countdownActive])
+  }, [session.running, activeTab])
 
   // Stop voice immediately on unmount
   useEffect(() => {
     return () => {
       voiceCoach.stopSession()
+      voiceCoach.cancel()
     }
   }, [])
 
-  // ── voice coaching: commands ONLY when person is doing pose to make them correct ──
+  // ── Live Pose Guidance Ref (avoids re-triggering timers on 30fps landmark updates) ──
+  const liveGuidanceRef = useRef({
+    running: session.running,
+    activeTab,
+    tracking,
+    countdownActive: session.countdownActive,
+    isSettling,
+    scorePct: Math.round(session.guidance.score * 100),
+    matched,
+    topFault: session.guidance.detailedCues[0],
+    primaryCueEn: session.guidance.cues[0],
+    primaryCueMr: session.guidance.cuesMr[0] ?? session.guidance.detailedCues[0]?.mr,
+    poseName: guide?.name ?? 'Yoga Pose',
+    poseId: guideId ?? 'downdog',
+    voiceMode,
+  })
+
+  liveGuidanceRef.current = {
+    running: session.running,
+    activeTab,
+    tracking,
+    countdownActive: session.countdownActive,
+    isSettling,
+    scorePct: Math.round(session.guidance.score * 100),
+    matched,
+    topFault: session.guidance.detailedCues[0],
+    primaryCueEn: session.guidance.cues[0],
+    primaryCueMr: session.guidance.cuesMr[0] ?? session.guidance.detailedCues[0]?.mr,
+    poseName: guide?.name ?? 'Yoga Pose',
+    poseId: guideId ?? 'downdog',
+    voiceMode,
+  }
+
+  // 1. Immediate spoken confirmation when posture form is achieved
   useEffect(() => {
-    // Only command when camera is running, user is in camera tab, person is in frame, and not in 5s scan or settling
-    if (
-      voiceMode === 'off' ||
-      !session.running ||
-      activeTab !== 'camera' ||
-      !tracking ||
-      session.countdownActive ||
-      isSettling
-    ) {
-      return
-    }
-
-    // 1. When pose form is fully matched: confirm once
-    if (matched && !prevMatchedRef.current) {
+    if (matched && !prevMatchedRef.current && session.running && tracking && !session.countdownActive && !isSettling && guide && voiceMode !== 'off') {
       prevMatchedRef.current = true
-      if (guide) {
-        voiceCoach.speakPoseMatch(guide.name, guide.sanskrit, voiceMode)
-      }
-      return
-    }
-
-    if (!matched) {
+      const currentScorePct = Math.round(session.guidance.score * 100)
+      voiceCoach.speakPoseMatch(guide.name, guide.sanskrit, voiceMode, currentScorePct)
+    } else if (!matched) {
       prevMatchedRef.current = false
     }
+  }, [matched, session.running, tracking, session.countdownActive, isSettling, guide, voiceMode, session.guidance.score])
 
-    // 2. Active posture corrections: every 4.5 seconds, if there is an active mistake, command the correction!
-    const id = window.setInterval(() => {
-      if (!session.running || activeTab !== 'camera' || !tracking || session.countdownActive || isSettling || matched) {
+  // 2. Continuous voice instructions while pose scoring to guide accuration
+  useEffect(() => {
+    if (voiceMode === 'off' || !session.running || activeTab !== 'camera') {
+      voiceCoach.stopSession()
+      voiceCoach.cancel()
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      const g = liveGuidanceRef.current
+      if (
+        !g.running ||
+        g.voiceMode === 'off' ||
+        g.activeTab !== 'camera' ||
+        !g.tracking ||
+        g.countdownActive ||
+        g.isSettling
+      ) {
         return
       }
 
-      const cueEn = session.guidance.cues[0]
-      const cueMr = session.guidance.cuesMr[0] ?? session.guidance.detailedCues[0]?.mr
-      if (cueEn) {
-        voiceCoach.speakCorrection(cueEn, cueMr, voiceMode)
-      }
-    }, 4500)
+      voiceCoach.speakAccurationInstruction({
+        scorePct: g.scorePct,
+        topCueEn: g.primaryCueEn,
+        topCueMr: g.primaryCueMr,
+        jointNameEn: g.topFault?.jointNameEn,
+        jointNameMr: g.topFault?.jointNameMr,
+        matched: g.matched,
+        poseName: g.poseName,
+        poseId: g.poseId,
+        mode: g.voiceMode,
+      })
+    }, 3600)
 
-    return () => window.clearInterval(id)
-  }, [
-    voiceMode,
-    session.running,
-    activeTab,
-    tracking,
-    session.countdownActive,
-    isSettling,
-    matched,
-    guide,
-    session.guidance.cues,
-    session.guidance.cuesMr,
-    session.guidance.detailedCues,
-  ])
+    return () => {
+      window.clearInterval(intervalId)
+      voiceCoach.stopSession()
+      voiceCoach.cancel()
+    }
+  }, [voiceMode, session.running, activeTab])
 
   // ── session callbacks ─────────────────────────────────────────────────────
   const handleStopSession = useCallback(() => {
     voiceCoach.stopSession()
+    voiceCoach.cancel()
     const summary = tracker.createSessionSummary(guideId ?? 'downdog')
     session.stop()
     if (summary) {

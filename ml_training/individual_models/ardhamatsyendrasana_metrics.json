@@ -1,0 +1,9 @@
+{
+  "pose": "ardhamatsyendrasana",
+  "accuracy": 0.9903069734573364,
+  "precision": 0.9142857193946838,
+  "recall": 1.0,
+  "f1": 0.9552238783954056,
+  "loss": 0.02881869673728943,
+  "epochs_trained": 44
+}

@@ -427,3 +427,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`SmartYoga AI Backend running on port ${PORT}`)
   console.log(`Health check ready at http://localhost:${PORT}/health`)
 })
+
